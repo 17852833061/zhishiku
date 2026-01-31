@@ -3,141 +3,203 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>知识农场 - 完整还原版</title>
-    
+    <title>知识农场 - 全功能还原版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=ZCOOL+XiaoWei&family=Noto+Sans+SC:wght@400;700&display=swap');
-        
-        body { margin: 0; padding: 0; transition: background-color 0.5s ease; }
+        body { margin: 0; transition: background-color 0.5s ease; -webkit-tap-highlight-color: transparent; }
         .paper-texture { background-image: url("https://www.transparenttextures.com/patterns/natural-paper.png"); }
-        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
-        .float-animation { animation: float 4s ease-in-out infinite; display: inline-block; }
+        @keyframes float { 0%, 100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-10px) rotate(5deg); } }
+        .float-animation { display: inline-block; animation: float 4s ease-in-out infinite; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        .annotation-highlight { background-color: #fef08a; border-bottom: 2px solid #facc15; }
+        .annotation-underline { border-bottom: 2px solid #10b981; }
     </style>
 </head>
 <body>
     <div id="root"></div>
-
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
-        // 图标兼容处理
-        const LucideIcon = ({ name, className = "w-5 h-5", size, strokeWidth }) => {
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []);
-            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
+        // 核心图标映射 (还原 lucide-react 导出)
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
         };
 
-        // 预设主题配置 (来自 PRESETS)
-        const THEMES = {
-            stardew: { mode: 'stardew', fontFamily: "'ZCOOL XiaoWei', serif", bgColor: '#3d2817', panelColor: '#F4E4BC', textColor: '#3d2817', accentColor: '#5B9B42', borderColor: '#724E31', borderRadius: '24px', borderWidth: '4px' },
-            minimal: { mode: 'minimal', fontFamily: "'Noto Sans SC', sans-serif", bgColor: '#F7F7F7', panelColor: '#ffffff', textColor: '#191919', accentColor: '#07C160', borderColor: '#EEEEEE', borderRadius: '12px', borderWidth: '0px' }
+        const PRESETS = {
+            stardew: { mode: 'stardew', fontFamily: "'ZCOOL XiaoWei', serif", bgColor: '#3d2817', panelColor: '#F4E4BC', textColor: '#3d2817', accentColor: '#5B9B42', borderColor: '#724E31', borderRadius: '24px', borderWidth: '4px', shadow: '6px 6px 0px 0px rgba(0,0,0,0.15)' },
+            minimal: { mode: 'minimal', fontFamily: "'Noto Sans SC', sans-serif", bgColor: '#F7F7F7', panelColor: '#ffffff', textColor: '#191919', accentColor: '#07C160', borderColor: '#EEEEEE', borderRadius: '12px', borderWidth: '0px', shadow: '0 2px 10px rgba(0,0,0,0.05)' }
         };
 
         function App() {
-            // 状态管理：还原 types.ts 的数据结构
-            const [materials, setMaterials] = useState(() => JSON.parse(localStorage.getItem('farm-data') || '[]'));
-            const [theme, setTheme] = useState(THEMES.stardew);
+            // 1. 状态初始化 (遵循 types.ts 结构)
+            const [materials, setMaterials] = useState(() => JSON.parse(localStorage.getItem('mp-vault-materials') || '[]'));
+            const [theme, setTheme] = useState(PRESETS.stardew);
             const [activeTab, setActiveTab] = useState('vault');
+            const [searchQuery, setSearchQuery] = useState('');
             const [isEditorOpen, setIsEditorOpen] = useState(false);
-            const [editingMaterial, setEditingMaterial] = useState({ title: '', content: '', category: '案例', domain: '生态' });
+            const [viewingMaterial, setViewingMaterial] = useState(null);
+            const [filterCat, setFilterCat] = useState('all');
 
-            // 持久化存储
             useEffect(() => {
-                localStorage.setItem('farm-data', JSON.stringify(materials));
+                localStorage.setItem('mp-vault-materials', JSON.stringify(materials));
             }, [materials]);
 
-            // 核心功能：播种（保存）
-            const handleSave = () => {
-                const newMaterial = {
-                    ...editingMaterial,
+            // 2. 搜索逻辑还原
+            const filteredMaterials = useMemo(() => {
+                return materials.filter(m => {
+                    const matchesSearch = (m.title + m.content).toLowerCase().includes(searchQuery.toLowerCase());
+                    const matchesCat = filterCat === 'all' || m.category === filterCat;
+                    return matchesSearch && matchesCat;
+                });
+            }, [materials, searchQuery, filterCat]);
+
+            // 3. 核心功能：存入金库
+            const handleSave = (newData) => {
+                const material = {
+                    ...newData,
                     id: Date.now().toString(),
                     createdAt: new Date().toISOString(),
-                    tags: [],
-                    annotations: []
+                    annotations: [], // 还原批注数组
+                    isKeyPoint: false
                 };
-                setMaterials([newMaterial, ...materials]);
+                setMaterials([material, ...materials]);
                 setIsEditorOpen(false);
-                setEditingMaterial({ title: '', content: '', category: '案例', domain: '生态' });
             };
 
             return (
-                <div className={`min-h-screen flex flex-col transition-all duration-500 ${theme.mode === 'stardew' ? 'paper-texture' : ''}`} 
+                <div className={`h-screen flex flex-col overflow-hidden transition-all ${theme.mode === 'stardew' ? 'paper-texture' : ''}`} 
                      style={{ backgroundColor: theme.bgColor, color: theme.textColor, fontFamily: theme.fontFamily }}>
                     
-                    {/* 顶部标题栏 */}
-                    <header className="p-6 flex justify-between items-center z-10">
+                    {/* 顶部胶囊导航 */}
+                    <header className="pt-12 pb-4 px-6 flex justify-between items-center z-50">
                         <div className="flex items-center gap-3">
-                            <LucideIcon name="sprout" className="text-green-600 w-8 h-8" />
-                            <h1 className="text-2xl font-bold tracking-tight">知识农场</h1>
+                            <div className="p-2 bg-emerald-500 rounded-xl text-white shadow-lg rotate-3"><Icon name="sprout" size={24} /></div>
+                            <h1 className="text-xl font-black tracking-tighter">知识农场</h1>
                         </div>
-                        <button onClick={() => setTheme(theme.mode === 'stardew' ? THEMES.minimal : THEMES.stardew)} className="p-2 bg-black/5 rounded-full">
-                            <LucideIcon name="palette" />
-                        </button>
+                        <div className="flex gap-2">
+                            <button onClick={() => setTheme(theme.mode === 'stardew' ? PRESETS.minimal : PRESETS.stardew)} className="p-2 rounded-full bg-white/20 backdrop-blur"><Icon name="palette" /></button>
+                        </div>
                     </header>
 
-                    {/* 主列表内容 */}
-                    <main className="flex-1 px-4 overflow-y-auto no-scrollbar pb-24">
-                        <div className="grid gap-4">
-                            {materials.length === 0 ? (
-                                <div className="text-center py-20 opacity-40 italic">农场空荡荡的，快去播种灵感吧...</div>
-                            ) : (
-                                materials.map(m => (
-                                    <div key={m.id} className="p-5" style={{ backgroundColor: theme.panelColor, borderRadius: theme.borderRadius, border: `${theme.borderWidth} solid ${theme.borderColor}` }}>
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-black/5 uppercase">{m.category}</span>
-                                            <span className="text-[10px] opacity-40">{new Date(m.createdAt).toLocaleDateString()}</span>
-                                        </div>
-                                        <h3 className="text-lg font-bold mb-2">{m.title}</h3>
-                                        <p className="text-sm opacity-70 line-clamp-3 leading-relaxed">{m.content}</p>
+                    {/* 主内容区 */}
+                    <main className="flex-1 overflow-y-auto px-4 pb-24 custom-scrollbar">
+                        {activeTab === 'vault' ? (
+                            <div className="space-y-4">
+                                <div className="sticky top-0 z-20 bg-inherit py-2">
+                                    <div className="relative group">
+                                        <Icon name="search" className="absolute left-4 top-1/2 -translate-y-1/2 opacity-30 group-focus-within:opacity-100 transition-opacity" />
+                                        <input className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white/80 backdrop-blur outline-none shadow-sm text-sm" 
+                                               placeholder="在金库中搜寻..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                                     </div>
-                                ))
-                            )}
-                        </div>
-                    </main>
-
-                    {/* 底部导航 */}
-                    <nav className="fixed bottom-0 inset-x-0 h-20 bg-white/80 backdrop-blur-md flex items-center justify-around border-t z-50">
-                        <button onClick={() => setActiveTab('vault')} className={`flex flex-col items-center gap-1 ${activeTab === 'vault' ? 'text-green-600' : 'opacity-40'}`}>
-                            <LucideIcon name="home" />
-                            <span className="text-[10px] font-bold">金库</span>
-                        </button>
-                        <button onClick={() => setIsEditorOpen(true)} className="w-14 h-14 -mt-8 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform">
-                            <LucideIcon name="plus" size={32} />
-                        </button>
-                        <button onClick={() => setActiveTab('me')} className={`flex flex-col items-center gap-1 ${activeTab === 'me' ? 'text-green-600' : 'opacity-40'}`}>
-                            <LucideIcon name="user" />
-                            <span className="text-[10px] font-bold">我的</span>
-                        </button>
-                    </nav>
-
-                    {/* 播种编辑器弹窗 (还原编辑器功能) */}
-                    {isEditorOpen && (
-                        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-                            <div className="w-full max-w-lg p-6 animate-in slide-in-from-bottom duration-300" style={{ backgroundColor: theme.panelColor, borderRadius: '2rem' }}>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-xl font-black">播种新灵感</h2>
-                                    <button onClick={() => setIsEditorOpen(false)}><LucideIcon name="x" /></button>
                                 </div>
-                                <input placeholder="输入标题..." className="w-full bg-transparent text-xl font-bold mb-4 outline-none border-b border-black/10 pb-2"
-                                       value={editingMaterial.title} onChange={e => setEditingMaterial({...editingMaterial, title: e.target.value})} />
-                                <textarea placeholder="输入内容..." className="w-full bg-transparent h-40 outline-none resize-none text-lg mb-6"
-                                          value={editingMaterial.content} onChange={e => setEditingMaterial({...editingMaterial, content: e.target.value})} />
-                                <button onClick={handleSave} className="w-full py-4 rounded-2xl font-bold text-white shadow-lg active:translate-y-1 transition-all"
-                                        style={{ backgroundColor: theme.accentColor }}>
-                                    确认存入金库
+
+                                <div className="grid gap-4">
+                                    {filteredMaterials.map(m => (
+                                        <div key={m.id} onClick={() => setViewingMaterial(m)} 
+                                             className="p-5 active:scale-95 transition-transform cursor-pointer"
+                                             style={{ backgroundColor: theme.panelColor, borderRadius: theme.borderRadius, border: `${theme.borderWidth} solid ${theme.borderColor}`, boxShadow: theme.shadow }}>
+                                            <div className="flex justify-between items-start mb-3">
+                                                <span className="text-[10px] font-bold px-2 py-0.5 bg-black/5 rounded uppercase tracking-widest opacity-60">{m.category}</span>
+                                                <Icon name="chevron-right" size={16} className="opacity-20" />
+                                            </div>
+                                            <h3 className="text-lg font-bold mb-2 leading-tight">{m.title}</h3>
+                                            <p className="text-sm opacity-60 line-clamp-2 italic">{m.content}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="p-4 space-y-6">
+                                <div className="p-8 rounded-[2rem] bg-white/30 backdrop-blur-xl border border-white/50 text-center">
+                                    <div className="w-20 h-20 bg-emerald-500 rounded-3xl mx-auto mb-4 flex items-center justify-center shadow-2xl rotate-6 text-white text-3xl font-black">农</div>
+                                    <h2 className="text-2xl font-black">高级农夫</h2>
+                                    <p className="opacity-50 text-sm">已播种 {materials.length} 株知识素材</p>
+                                </div>
+                                <button onClick={() => setMaterials([])} className="w-full py-4 bg-rose-50 text-rose-500 rounded-2xl font-bold flex items-center justify-center gap-2">
+                                    <Icon name="trash-2" /> 格式化农场（谨慎）
                                 </button>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </main>
+
+                    {/* 底部功能栏 */}
+                    <nav className="fixed bottom-0 inset-x-0 h-20 bg-white/90 backdrop-blur-md flex items-center justify-around pb-4 border-t border-black/5">
+                        <TabItem active={activeTab === 'vault'} label="金库" icon="home" onClick={() => setActiveTab('vault')} />
+                        <button onClick={() => setIsEditorOpen(true)} className="w-16 h-16 bg-[#5B9B42] text-white rounded-full flex items-center justify-center shadow-2xl -translate-y-4 border-4 border-white active:scale-90 transition-all">
+                            <Icon name="plus" size={32} />
+                        </button>
+                        <TabItem active={activeTab === 'me'} label="我的" icon="user" onClick={() => setActiveTab('me')} />
+                    </nav>
+
+                    {/* 还原：全屏编辑器 */}
+                    {isEditorOpen && <Editor onSave={handleSave} onClose={() => setIsEditorOpen(false)} theme={theme} />}
+                    
+                    {/* 还原：详情页与批注查看 */}
+                    {viewingMaterial && <Details material={viewingMaterial} onClose={() => setViewingMaterial(null)} theme={theme} onDelete={(id) => {setMaterials(materials.filter(x => x.id !== id)); setViewingMaterial(null);}} />}
                 </div>
             );
         }
+
+        // --- 子组件：全功能编辑器 ---
+        function Editor({ onSave, onClose, theme }) {
+            const [form, setForm] = useState({ title: '', content: '', category: '案例', domain: '生态' });
+            return (
+                <div className="fixed inset-0 z-[200] bg-white flex flex-col p-6 animate-in fade-in slide-in-from-bottom duration-300" style={{ fontFamily: theme.fontFamily }}>
+                    <div className="flex justify-between items-center mb-8">
+                        <button onClick={onClose} className="p-2 bg-slate-100 rounded-full"><Icon name="arrow-left" /></button>
+                        <button onClick={() => onSave(form)} disabled={!form.title} className="px-8 py-2 bg-[#5B9B42] text-white rounded-full font-bold disabled:opacity-30">播种</button>
+                    </div>
+                    <input className="text-3xl font-black outline-none mb-6 placeholder:opacity-20" placeholder="灵感标题..." value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
+                    <textarea className="flex-1 text-xl outline-none resize-none placeholder:opacity-20 leading-relaxed" placeholder="在此输入你的素材内容..." value={form.content} onChange={e => setForm({...form, content: e.target.value})} />
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                        <select className="p-4 bg-slate-50 rounded-2xl font-bold appearance-none" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
+                            {['案例', '金句', '政策', '人物', '其他'].map(c => <option key={c}>{c}</option>)}
+                        </select>
+                        <select className="p-4 bg-slate-50 rounded-2xl font-bold appearance-none" value={form.domain} onChange={e => setForm({...form, domain: e.target.value})}>
+                            {['生态', '环境', '经济', '税务', '政治', '科技'].map(d => <option key={d}>{d}</option>)}
+                        </select>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- 子组件：详情与批注 ---
+        function Details({ material, onClose, theme, onDelete }) {
+            return (
+                <div className="fixed inset-0 z-[150] bg-white flex flex-col animate-in fade-in slide-in-from-right duration-300" style={{ fontFamily: theme.fontFamily }}>
+                    <header className="p-6 flex justify-between items-center border-b">
+                        <button onClick={onClose}><Icon name="arrow-left" /></button>
+                        <div className="flex gap-4">
+                            <button onClick={() => onDelete(material.id)} className="text-rose-500"><Icon name="trash-2" /></button>
+                        </div>
+                    </header>
+                    <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                        <div className="flex gap-2 text-[10px] font-black uppercase">
+                            <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded">{material.category}</span>
+                            <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">{material.domain}</span>
+                        </div>
+                        <h2 className="text-3xl font-black leading-tight">{material.title}</h2>
+                        <div className="w-12 h-2 bg-emerald-500 rounded-full" />
+                        <p className="text-xl leading-relaxed text-slate-700 whitespace-pre-wrap">{material.content}</p>
+                    </div>
+                </div>
+            );
+        }
+
+        const TabItem = ({ active, label, icon, onClick }) => (
+            <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-emerald-600 scale-110' : 'opacity-30'}`}>
+                <Icon name={icon} />
+                <span className="text-[10px] font-bold">{label}</span>
+            </button>
+        );
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
