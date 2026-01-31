@@ -1,78 +1,111 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>知识农场 - 微信小程序版</title>
+    <title>知识农场 - 网页版</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=ZCOOL+XiaoWei&family=Noto+Sans+SC:wght@300;400;700&family=Noto+Serif+SC:wght@400;700&display=swap');
-      
-      body {
-        transition: background-color 0.5s ease;
-        -webkit-tap-highlight-color: transparent;
-      }
-
-      /* Custom Scrollbar */
-      .custom-scrollbar::-webkit-scrollbar {
-        width: 4px;
-      }
-      .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: rgba(0,0,0,0.1);
-        border-radius: 10px;
-      }
-
-      /* No scrollbar utility */
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .no-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
-
-      /* Stardew Paper texture */
-      .paper-texture {
-        background-image: url("https://www.transparenttextures.com/patterns/natural-paper.png");
-      }
-
-      @keyframes float {
-        0% { transform: translateY(0px) rotate(0deg); }
-        50% { transform: translateY(-10px) rotate(5deg); }
-        100% { transform: translateY(0px) rotate(0deg); }
-      }
-      .float-animation {
-        display: inline-block;
-        animation: float 4s ease-in-out infinite;
-      }
-
-      /* Safe areas for mobile */
-      .safe-top {
-        padding-top: env(safe-area-inset-top);
-      }
-      .safe-bottom {
-        padding-bottom: env(safe-area-inset-bottom);
-      }
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=ZCOOL+XiaoWei&family=Noto+Sans+SC:wght@300;400;700&display=swap');
+        body { transition: background-color 0.5s ease; -webkit-tap-highlight-color: transparent; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+        .paper-texture { background-image: url("https://www.transparenttextures.com/patterns/natural-paper.png"); }
+        @keyframes float { 0%, 100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-10px) rotate(5deg); } }
+        .float-animation { display: inline-block; animation: float 4s ease-in-out infinite; }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
 </head>
-  <body class="text-slate-900 overflow-hidden bg-slate-50">
+<body>
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
+
+    <script type="text/babel">
+        const { useState, useMemo, useRef, useEffect } = React;
+        
+        // 模拟 lucide-react 的图标组件
+        const icons = {
+            Plus: (props) => <i data-lucide="plus" {...props}></i>,
+            Search: (props) => <i data-lucide="search" {...props}></i>,
+            ChevronRight: (props) => <i data-lucide="chevron-right" {...props}></i>,
+            X: (props) => <i data-lucide="x" {...props}></i>,
+            Settings2: (props) => <i data-lucide="settings-2" {...props}></i>,
+            Shirt: (props) => <i data-lucide="shirt" {...props}></i>,
+            Sprout: (props) => <i data-lucide="sprout" {...props}></i>,
+            Star: (props) => <i data-lucide="star" {...props}></i>,
+            Filter: (props) => <i data-lucide="filter" {...props}></i>,
+            Globe: (props) => <i data-lucide="globe" {...props}></i>,
+            TagIcon: (props) => <i data-lucide="tag" {...props}></i>,
+            Menu: (props) => <i data-lucide="menu" {...props}></i>,
+            ListIcon: (props) => <i data-lucide="list" {...props}></i>,
+            LayoutIcon: (props) => <i data-lucide="layout" {...props}></i>,
+            PlusCircle: (props) => <i data-lucide="plus-circle" {...props}></i>,
+            Edit3: (props) => <i data-lucide="edit-3" {...props}></i>,
+            Trash2: (props) => <i data-lucide="trash-2" {...props}></i>
+        };
+
+        const { Plus, Search, ChevronRight, X, Settings2, Shirt, Sprout, Star, Filter, Globe, TagIcon, Menu, ListIcon, LayoutIcon, PlusCircle, Edit3, Trash2 } = icons;
+
+        // --- 这里是你的 App.tsx 核心逻辑 ---
+        // 为了兼容浏览器环境，我删除了类型定义(Typescript)并做了轻微适配
+        
+        const PRESETS = {
+            stardew: { mode: 'stardew', fontFamily: "'ZCOOL XiaoWei', serif", bgColor: '#3d2817', panelColor: '#F4E4BC', textColor: '#3d2817', accentColor: '#5B9B42', borderColor: '#724E31', borderRadius: '2rem', borderWidth: '6px', shadow: '8px 8px 0px 0px rgba(0,0,0,0.2)' },
+            minimal: { mode: 'minimal', fontFamily: "'Noto Sans SC', sans-serif", bgColor: '#f8fafc', panelColor: '#ffffff', textColor: '#1e293b', accentColor: '#6366f1', borderColor: '#e2e8f0', borderRadius: '1rem', borderWidth: '1px', shadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }
+        };
+
+        function App() {
+            const [materials, setMaterials] = useState([]);
+            const [theme, setTheme] = useState(PRESETS.stardew);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [season, setSeason] = useState('Spring');
+
+            // 渲染图标
+            useEffect(() => {
+                if (window.lucide) { window.lucide.createIcons(); }
+            });
+
+            return (
+                <div className="flex h-screen overflow-hidden" style={{ backgroundColor: theme.bgColor, fontFamily: theme.fontFamily, color: theme.textColor }}>
+                    {/* 侧边栏 */}
+                    <aside className="w-72 m-4 hidden lg:flex flex-col" style={{ backgroundColor: theme.panelColor, borderRadius: theme.borderRadius, border: `${theme.borderWidth} solid ${theme.borderColor}`, boxShadow: theme.shadow }}>
+                        <div className="p-6 border-b border-black/10 flex items-center gap-2">
+                            <Sprout className="w-6 h-6" style={{ color: theme.accentColor }} />
+                            <h1 className="text-xl font-bold">知识金库</h1>
+                        </div>
+                        <div className="flex-1 p-6">
+                            <p className="text-sm opacity-50 italic">双击下方按钮切换季节...</p>
+                        </div>
+                        <div className="p-6">
+                            <button className="w-full py-4 font-bold shadow-lg" style={{ backgroundColor: theme.accentColor, color: '#fff', borderRadius: '1rem' }}>
+                                + 播种灵感
+                            </button>
+                        </div>
+                    </aside>
+
+                    {/* 主内容区 */}
+                    <main className="flex-1 p-4 flex flex-col">
+                        <header className="h-20 mb-4 px-8 flex items-center gap-4" style={{ backgroundColor: theme.panelColor, borderRadius: theme.borderRadius, border: `${theme.borderWidth} solid ${theme.borderColor}`, boxShadow: theme.shadow }}>
+                            <div className="relative flex-1 max-w-xl">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 opacity-30 w-4 h-4" />
+                                <input className="w-full pl-9 pr-4 py-2 bg-black/5 rounded-xl outline-none" placeholder="搜索知识..." />
+                            </div>
+                        </header>
+                        <div className="flex-1 flex flex-col items-center justify-center opacity-20">
+                            <Sprout className="w-24 h-24 mb-6 float-animation" />
+                            <p className="text-2xl font-black">仓库正在初始化...</p>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
