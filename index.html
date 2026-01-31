@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>知识农场 - 稳定修复版</title>
+    <title>知识农场 - 完整还原版</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -12,67 +12,129 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=ZCOOL+XiaoWei&display=swap');
-        body { background-color: #3d2817; margin: 0; padding: 0; font-family: 'ZCOOL XiaoWei', serif; }
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=ZCOOL+XiaoWei&family=Noto+Sans+SC:wght@400;700&display=swap');
+        
+        body { margin: 0; padding: 0; transition: background-color 0.5s ease; }
         .paper-texture { background-image: url("https://www.transparenttextures.com/patterns/natural-paper.png"); }
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
-        .float-animation { animation: float 4s ease-in-out infinite; }
+        .float-animation { animation: float 4s ease-in-out infinite; display: inline-block; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
-        // 简易图标组件，避开复杂的 import 报错
-        const Icon = ({ name, className }) => {
+        // 图标兼容处理
+        const LucideIcon = ({ name, className = "w-5 h-5", size, strokeWidth }) => {
             useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []);
-            return <i data-lucide={name} className={className}></i>;
+            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
+        };
+
+        // 预设主题配置 (来自 PRESETS)
+        const THEMES = {
+            stardew: { mode: 'stardew', fontFamily: "'ZCOOL XiaoWei', serif", bgColor: '#3d2817', panelColor: '#F4E4BC', textColor: '#3d2817', accentColor: '#5B9B42', borderColor: '#724E31', borderRadius: '24px', borderWidth: '4px' },
+            minimal: { mode: 'minimal', fontFamily: "'Noto Sans SC', sans-serif", bgColor: '#F7F7F7', panelColor: '#ffffff', textColor: '#191919', accentColor: '#07C160', borderColor: '#EEEEEE', borderRadius: '12px', borderWidth: '0px' }
         };
 
         function App() {
-            // 预设数据，防止报错
-            const [materials, setMaterials] = useState([
-                { id: 1, title: '欢迎来到知识农场', content: '你的代码已经成功部署！', category: '案例' }
-            ]);
+            // 状态管理：还原 types.ts 的数据结构
+            const [materials, setMaterials] = useState(() => JSON.parse(localStorage.getItem('farm-data') || '[]'));
+            const [theme, setTheme] = useState(THEMES.stardew);
+            const [activeTab, setActiveTab] = useState('vault');
+            const [isEditorOpen, setIsEditorOpen] = useState(false);
+            const [editingMaterial, setEditingMaterial] = useState({ title: '', content: '', category: '案例', domain: '生态' });
+
+            // 持久化存储
+            useEffect(() => {
+                localStorage.setItem('farm-data', JSON.stringify(materials));
+            }, [materials]);
+
+            // 核心功能：播种（保存）
+            const handleSave = () => {
+                const newMaterial = {
+                    ...editingMaterial,
+                    id: Date.now().toString(),
+                    createdAt: new Date().toISOString(),
+                    tags: [],
+                    annotations: []
+                };
+                setMaterials([newMaterial, ...materials]);
+                setIsEditorOpen(false);
+                setEditingMaterial({ title: '', content: '', category: '案例', domain: '生态' });
+            };
 
             return (
-                <div className="flex h-screen p-4 overflow-hidden" style={{ backgroundColor: '#3d2817' }}>
-                    {/* 左侧栏 */}
-                    <aside className="w-64 hidden lg:flex flex-col p-6 mr-4" style={{ backgroundColor: '#F4E4BC', borderRadius: '2rem', border: '6px solid #724E31' }}>
-                        <div className="flex items-center gap-2 mb-8">
-                            <Icon name="sprout" className="text-green-700 w-8 h-8" />
-                            <h1 className="text-2xl font-bold text-[#3d2817]">知识金库</h1>
+                <div className={`min-h-screen flex flex-col transition-all duration-500 ${theme.mode === 'stardew' ? 'paper-texture' : ''}`} 
+                     style={{ backgroundColor: theme.bgColor, color: theme.textColor, fontFamily: theme.fontFamily }}>
+                    
+                    {/* 顶部标题栏 */}
+                    <header className="p-6 flex justify-between items-center z-10">
+                        <div className="flex items-center gap-3">
+                            <LucideIcon name="sprout" className="text-green-600 w-8 h-8" />
+                            <h1 className="text-2xl font-bold tracking-tight">知识农场</h1>
                         </div>
-                        <nav className="flex-1 space-y-4">
-                            <div className="p-3 bg-black/5 rounded-xl text-sm font-bold">🌾 全部果实</div>
-                            <div className="p-3 opacity-40 text-sm">🌻 春季素材</div>
-                        </nav>
-                        <button className="w-full py-4 mt-4 bg-[#5B9B42] text-white font-bold rounded-2xl shadow-lg border-b-4 border-green-800 active:border-b-0 transition-all">
-                            + 播种灵感
+                        <button onClick={() => setTheme(theme.mode === 'stardew' ? THEMES.minimal : THEMES.stardew)} className="p-2 bg-black/5 rounded-full">
+                            <LucideIcon name="palette" />
                         </button>
-                    </aside>
+                    </header>
 
-                    {/* 主内容 */}
-                    <main className="flex-1 flex flex-col">
-                        <header className="h-20 mb-4 px-8 flex items-center bg-[#F4E4BC]" style={{ borderRadius: '2rem', border: '6px solid #724E31' }}>
-                            <div className="bg-black/5 px-4 py-2 rounded-xl flex items-center gap-2 w-full max-w-md">
-                                <Icon name="search" className="opacity-30 w-4 h-4" />
-                                <input className="bg-transparent outline-none text-sm w-full" placeholder="搜索我的知识仓库..." />
-                            </div>
-                        </header>
-
-                        <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {materials.map(m => (
-                                <div key={m.id} className="p-6 paper-texture bg-[#F4E4BC]" style={{ borderRadius: '1.5rem', border: '4px solid #724E31' }}>
-                                    <span className="text-[10px] font-bold bg-green-200 text-green-800 px-2 py-1 rounded-md">{m.category}</span>
-                                    <h3 className="text-xl font-bold mt-2 mb-2">{m.title}</h3>
-                                    <p className="text-sm opacity-70 italic">{m.content}</p>
-                                </div>
-                            ))}
+                    {/* 主列表内容 */}
+                    <main className="flex-1 px-4 overflow-y-auto no-scrollbar pb-24">
+                        <div className="grid gap-4">
+                            {materials.length === 0 ? (
+                                <div className="text-center py-20 opacity-40 italic">农场空荡荡的，快去播种灵感吧...</div>
+                            ) : (
+                                materials.map(m => (
+                                    <div key={m.id} className="p-5" style={{ backgroundColor: theme.panelColor, borderRadius: theme.borderRadius, border: `${theme.borderWidth} solid ${theme.borderColor}` }}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-black/5 uppercase">{m.category}</span>
+                                            <span className="text-[10px] opacity-40">{new Date(m.createdAt).toLocaleDateString()}</span>
+                                        </div>
+                                        <h3 className="text-lg font-bold mb-2">{m.title}</h3>
+                                        <p className="text-sm opacity-70 line-clamp-3 leading-relaxed">{m.content}</p>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </main>
+
+                    {/* 底部导航 */}
+                    <nav className="fixed bottom-0 inset-x-0 h-20 bg-white/80 backdrop-blur-md flex items-center justify-around border-t z-50">
+                        <button onClick={() => setActiveTab('vault')} className={`flex flex-col items-center gap-1 ${activeTab === 'vault' ? 'text-green-600' : 'opacity-40'}`}>
+                            <LucideIcon name="home" />
+                            <span className="text-[10px] font-bold">金库</span>
+                        </button>
+                        <button onClick={() => setIsEditorOpen(true)} className="w-14 h-14 -mt-8 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform">
+                            <LucideIcon name="plus" size={32} />
+                        </button>
+                        <button onClick={() => setActiveTab('me')} className={`flex flex-col items-center gap-1 ${activeTab === 'me' ? 'text-green-600' : 'opacity-40'}`}>
+                            <LucideIcon name="user" />
+                            <span className="text-[10px] font-bold">我的</span>
+                        </button>
+                    </nav>
+
+                    {/* 播种编辑器弹窗 (还原编辑器功能) */}
+                    {isEditorOpen && (
+                        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+                            <div className="w-full max-w-lg p-6 animate-in slide-in-from-bottom duration-300" style={{ backgroundColor: theme.panelColor, borderRadius: '2rem' }}>
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-xl font-black">播种新灵感</h2>
+                                    <button onClick={() => setIsEditorOpen(false)}><LucideIcon name="x" /></button>
+                                </div>
+                                <input placeholder="输入标题..." className="w-full bg-transparent text-xl font-bold mb-4 outline-none border-b border-black/10 pb-2"
+                                       value={editingMaterial.title} onChange={e => setEditingMaterial({...editingMaterial, title: e.target.value})} />
+                                <textarea placeholder="输入内容..." className="w-full bg-transparent h-40 outline-none resize-none text-lg mb-6"
+                                          value={editingMaterial.content} onChange={e => setEditingMaterial({...editingMaterial, content: e.target.value})} />
+                                <button onClick={handleSave} className="w-full py-4 rounded-2xl font-bold text-white shadow-lg active:translate-y-1 transition-all"
+                                        style={{ backgroundColor: theme.accentColor }}>
+                                    确认存入金库
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
